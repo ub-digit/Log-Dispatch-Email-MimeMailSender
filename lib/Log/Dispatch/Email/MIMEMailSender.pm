@@ -62,7 +62,7 @@ sub send_email {
         'From' => $self->{from},
     );
 
-    push @header, 'Subject' => $self->{subject} if $self->{subject};
+    push @header, 'Subject' => Log::Log4perl::MDC->get('subject') // $self->{subject};
     push @header, 'Reply-To' => $self->{reply_to} if $self->{reply_to};
     push @header, 'cc' => $self->{cc} if $self->{cc};
 
@@ -80,9 +80,9 @@ sub send_email {
                 Email::MIME->create(
                     body_str => $p{message},
                     attributes =>  {
-                        charset => Log::Log4perl::MDC->get('charset') || 'utf-8',
-                        content_type => Log::Log4perl::MDC->get('content-type') || 'text/plain',
-                        encoding => Log::Log4perl::MDC->get('encoding') || 'quoted-printable',
+                        charset => Log::Log4perl::MDC->get('charset') // 'utf-8',
+                        content_type => Log::Log4perl::MDC->get('content-type') // 'text/plain',
+                        encoding => Log::Log4perl::MDC->get('encoding') // 'quoted-printable',
                     }
                 ),
                 Email::MIME->create(
@@ -90,9 +90,9 @@ sub send_email {
                     attributes => {
                         filename => $filename,
                         name => $filename, #??
-                        content_type => Log::Log4perl::MDC->get('attachment-content-type') || 'text/plain',
-                        encoding => Log::Log4perl::MDC->get('attachment-encoding') || 'base64',
-                        disposition => Log::Log4perl::MDC->get('attachment-disposition') || 'attachment',
+                        content_type => Log::Log4perl::MDC->get('attachment-content-type') // 'text/plain',
+                        encoding => Log::Log4perl::MDC->get('attachment-encoding') // 'base64',
+                        disposition => Log::Log4perl::MDC->get('attachment-disposition') // 'attachment',
                     },
                 ),
             ]
@@ -104,6 +104,7 @@ sub send_email {
             body => $p{message},
         );
     }
+    Log::Log4perl::MDC->remove(); # ??
 
     # TODO: SMTP authentication params
     my $transport = Email::Sender::Transport::SMTP->new(
