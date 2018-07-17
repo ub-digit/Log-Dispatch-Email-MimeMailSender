@@ -16,15 +16,11 @@ use Email::Sender::Simple;
 # use Email::Simple::Creator; # ??? Probably don't need this
 use Email::Sender::Transport::SMTP;
 use File::Basename;
-use IO::All;
 use Log::Log4perl::MDC;
-
 use Try::Tiny;
-
 use Params::ValidationCompiler qw( validation_for );
 
-# @TODO: use parent?
-
+# @TODO parent?
 use base qw( Log::Dispatch::Email );
 
 {
@@ -68,12 +64,34 @@ sub send_email {
 
     # @TODO: Would be quite easy to autodetect content type and support multiple files
     my $mail;
-    my $attachment = Log::Log4perl::MDC->get('attachment');
-    if ($attachment) {
+    if (
+        Log::Log4perl::MDC->get('attachment-file') ||
+        Log::Log4perl::MDC->get('attachment-data')
+    ) {
         # TODO: Should have some more validation
         # that attachment is a path and file exists
         # plus we take this from the context thingy, not class param
-        my ($filename) = fileparse($attachment);
+
+        my $attachment_body;
+        my $attachment_filename;
+
+        $attachment_filename = Log::Log4perl::MDC->get('attachment-filename');
+        if (Log::Log4perl::MDC->get('attachment-file')) {
+            my $attachment_file = Log::Log4perl::MDC->get('attachment-file');
+            {
+                local $/ = undef;
+                open(FILE, $attachment_file, '<');
+                binmode FILE;
+                ($attachment_filename) = fileparse($attachment_file) unless $attachment_filename;
+                $attachment_body = <FILE>;
+                close(FILE);
+            }
+        }
+        elsif (Log::Log4perl::MDC->get('attachment-data')) {
+            $attachment_body = Log::Log4perl::MDC->get('attachment-data');
+            $attachment_filename = 'attachment' unless $attachment_filename;
+        }
+
         $mail = Email::MIME->create(
             header => \@header,
             parts => [
@@ -86,10 +104,10 @@ sub send_email {
                     }
                 ),
                 Email::MIME->create(
-                    body => io($attachment)->binary->all,
+                    body => $attachment_body,
                     attributes => {
-                        filename => $filename,
-                        name => $filename, #??
+                        filename => $attachment_filename,
+                        name => $attachment_filename, #??
                         content_type => Log::Log4perl::MDC->get('attachment-content-type') // 'text/plain',
                         encoding => Log::Log4perl::MDC->get('attachment-encoding') // 'base64',
                         disposition => Log::Log4perl::MDC->get('attachment-disposition') // 'attachment',
@@ -104,7 +122,6 @@ sub send_email {
             body => $p{message},
         );
     }
-    Log::Log4perl::MDC->remove(); # ??
 
     # TODO: SMTP authentication params
     my $transport = Email::Sender::Transport::SMTP->new(
@@ -113,6 +130,7 @@ sub send_email {
             port => $self->{smtp_port},
         }
     );
+
     Email::Sender::Simple->send($mail, { transport => $transport });
 }
 
