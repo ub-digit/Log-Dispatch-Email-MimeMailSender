@@ -53,8 +53,12 @@ sub send_email {
     my $self = shift;
     my %p = @_;
 
+    my $to = Log::Log4perl::MDC->get('to');
+    my @to;
+    @to = $to ? (ref($to) eq 'ARRAY' ? @{$to} : ($to)) : @{$self->{to}};
+
     my @header = (
-        'To' => ( join ',', @{$self->{to}} ),
+        'To' => ( join ',', @to ),
         'From' => $self->{from},
     );
 
